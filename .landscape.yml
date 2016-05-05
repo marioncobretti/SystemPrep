@@ -1,3 +1,4 @@
 pylint:
     disable:
-        logging-format-interpolation
+        logging-modules:
+            W1201, W1202
