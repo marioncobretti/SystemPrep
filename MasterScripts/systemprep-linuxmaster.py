@@ -12,22 +12,23 @@ import yaml
 import json
 import datetime
 
-def ExceptionHandler(msg):
+
+def exceptionhandler(msg):
     print(msg)
     sys.exit()
 
 
 class SystemPrep(object):
-
-    def __init__(self, params, scriptpath, config_path, stream=False):
+    def __init__(self, defined_params, scriptpath, config_path, stream=False):
         """
         Class constructor
         """
-        self.kwargs = params
+        self.kwargs = defined_params
         self.script_path = scriptpath
         self.system = platform.system()
         self.config_path = config_path
-        # TODO create a config path and add this in so it can be automagically obtained. This will remove the hardcoded local path.
+        # TODO create a config path and add this in so it can be automagically obtained.
+        # This will remove the hardcoded local path.
         self.default_config = 'default.yaml'
         self.config = None
         self.system_params = None
@@ -36,7 +37,6 @@ class SystemPrep(object):
 
         logging.info('Parameters:\n{}'.format(self.kwargs))
         logging.info('System Type:\t{}'.format(self.system))
-
 
         if stream and os.path.exists('logs'):
             logging.basicConfig(filename=os.path.join('.', 'SystemPrep-{}.log'.format(str(datetime.date.today()))),
@@ -56,7 +56,8 @@ class SystemPrep(object):
         with open(self.config_path) as f:
             data = f.read()
 
-        self.config = yaml.dump(data)
+        if data:
+            self.config = yaml.dump(data)
 
     def execute_scripts(self):
         """
@@ -101,11 +102,11 @@ class SystemPrep(object):
                 result = subprocess.call(fullcommand, shell=True)
 
             if result is not 0:
-                message = 'Encountered an unrecoverable error executing a ' \
-                          'content script. Exiting with failure.\n' \
-                          'Command executed: {}' \
+                msg = "Encountered an unrecoverable error executing a " \
+                      "content script. Exiting with failure.\n" \
+                      "Command executed: {}" \
                     .format(script['Parameters'])
-                ExceptionHandler(message)
+                exceptionhandler(msg)
 
         self.cleanup()
 
@@ -133,9 +134,9 @@ class SystemPrep(object):
         params['readyfile'] = os.path.join('{}'.format(params['prepdir']), 'system-is-ready')
         params['logdir'] = os.path.join('{}'.format(params['prepdir']), 'Logs')
         params['workingdir'] = os.path.join('{}'.format(params['prepdir']), 'WorkingFiles')
-        params['shutdown_path'] = os.path.join('{}'.format(os.environ['SYSTEMROOT']),'system32', 'shutdown.exe')
-        params['restart'] = params['shutdown_path']  + ' /r /t 30 /d p:2:4 /c ' + \
-                            '"SystemPrep complete. Rebooting computer."'
+        params['shutdown_path'] = os.path.join('{}'.format(os.environ['SYSTEMROOT']), 'system32', 'shutdown.exe')
+        params['restart'] = params["shutdown_path"] + " /r /t 30 /d p:2:4 /c " + \
+                            "\"SystemPrep complete. Rebooting computer.\""
         self.system_params = params
 
     def _get_system_params(self):
@@ -152,7 +153,7 @@ class SystemPrep(object):
             self._windows_paths()
         else:
             logging.fatal('System, {}, is not recognized?'.format(self.system))
-            ExceptionHandler('The scripts do not recognize this system type: {}'.format(self.system))
+            exceptionhandler('The scripts do not recognize this system type: {}'.format(self.system))
 
         # Create SystemPrep directories
         try:
@@ -163,8 +164,7 @@ class SystemPrep(object):
         except Exception as exc:
             logging.fatal('Could not create a directory in {}.\n'
                           'Exception: {}'.format(self.system_params['prepdir'], exc))
-            ExceptionHandler(exc)
-
+            exceptionhandler(exc)
 
     def _get_scripts_to_execute(self):
         """
@@ -172,8 +172,7 @@ class SystemPrep(object):
         'ScriptSource' is the path to the script to be executed. Only supports http/s sources currently.
         'Parameters' is a hashtable of parameters to pass to the script.
         Use `merge_dicts({yourdict}, scriptparams)` to merge command line parameters with a set of default parameters.
-            :param workingdir: str, the working directory where content should be saved
-            :rtype : dict
+
         """
         self._get_config_data()
 
@@ -186,11 +185,11 @@ class SystemPrep(object):
                     item,
                     self.config_path
                 ))
-                ExceptionHandler(exc)
+                exceptionhandler(exc)
 
         self.execution_scripts = scriptstoexecute
 
-    def download_file(self, url, filename, sourceiss3bucket = False):
+    def download_file(self, url, filename, sourceiss3bucket=False):
         """
         Download the file from `url` and save it locally under `filename`.
             :rtype : bool
@@ -264,14 +263,14 @@ class SystemPrep(object):
             shutil.rmtree(self.system_params['workingdir'])
         except Exception as exc:
             # TODO: Update `except` logic
-            logging.fatal('Cleanup Failed!\n'
-                              'Exception: {0}'.format(exc))
-            ExceptionHandler('Cleanup Failed.\nAborting.')
+            logging.fatal('Cleanup Failed!\nException: {0}'.format(exc))
+            exceptionhandler('Cleanup Failed.\nAborting.')
 
         logging.info('Removed temporary data in working directory -- {}'.format(self.system_params['workingdir']))
         logging.info('Exiting cleanup routine...')
         logging.info('-+' * 40)
         return True
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -280,8 +279,6 @@ if __name__ == "__main__":
     params = parser.parse_known_args()
 
     kwargs = vars(params[0])
-
-
 
     # Loop through extra parameters and put into dictionary.
     for param in params[1]:
