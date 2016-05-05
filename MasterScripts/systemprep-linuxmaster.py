@@ -17,7 +17,7 @@ def ExceptionHandler(msg):
     sys.exit()
 
 
-class SystemPrep:
+class SystemPrep(object):
 
     def __init__(self, params, scriptpath, config_path, stream=False):
         """
@@ -35,7 +35,7 @@ class SystemPrep:
         self.execution_scripts = None
 
         logging.info('Parameters:\n{}'.format(self.kwargs))
-        logging.info('System Type:\t'.format(self.system))
+        logging.info('System Type:\t{}'.format(self.system))
 
 
         if stream and os.path.exists('logs'):
@@ -96,15 +96,15 @@ class SystemPrep:
             else:
                 paramstring = ' '.join("%s='%s'" % (key, val) for (key, val) in script['Parameters'].iteritems())
                 powershell = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe '
-                fullcommand = powershell + ' {0} {1}'.format(fullfilepath, paramstring)
+                fullcommand = powershell + ' {} {}'.format(fullfilepath, paramstring)
                 # We need to do the same for Windows that we do for Linux, but need to test it out ....
                 result = subprocess.call(fullcommand, shell=True)
 
             if result is not 0:
                 message = 'Encountered an unrecoverable error executing a ' \
                           'content script. Exiting with failure.\n' \
-                          'Command executed: {0}' \
-                    .format(args)
+                          'Command executed: {}' \
+                    .format(script['Parameters'])
                 ExceptionHandler(message)
 
         self.cleanup()
@@ -123,7 +123,7 @@ class SystemPrep:
         params['prepdir'] = os.path.join('{}'.format(self.system_drive), 'usr', 'tmp', 'systemprep')
         params['readyfile'] = os.path.join('{}'.format(self.system_drive), 'var', 'run', 'system-is-ready')
         params['logdir'] = os.path.join('{}'.format(self.system_drive), 'var', 'log')
-        params['workingdir'] = '{}'.format(params['prepdir'], 'workingfiles')
+        params['workingdir'] = os.path.join('{}'.format(params['prepdir'], 'workingfiles'))
         params['restart'] = 'shutdown -r +1 &'
         self.system_params = params
 
@@ -143,7 +143,7 @@ class SystemPrep:
         Returns a dictionary of OS platform-specific parameters.
             :rtype : dict
         """
-        params = {}
+
         if 'Linux' in self.system:
             self.systemdrive = '/'
             self._linux_paths()
