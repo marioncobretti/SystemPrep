@@ -1,0 +1,3 @@
+pylint:
+    disable:
+        Use % formatting in logging functions and pass the % parameters as arguments
