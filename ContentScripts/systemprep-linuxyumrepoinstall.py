@@ -4,7 +4,6 @@ import re
 import shutil
 import sys
 import urllib2
-import json
 import logging
 
 from boto.exception import BotoClientError
@@ -56,14 +55,14 @@ def _validate_distro():
             release = f.readline().strip()
     except Exception as exc:
         raise SystemError('Could not read /etc/system-release. '
-                          'Error: {0}'.format(exc))
+                          'Error: {}'.format(exc))
 
     # Search the release file for a match against _supported_dists
     matched = match_supported_dist.search(release.lower())
     if matched is None:
         # Release not supported, exit with error
         raise SystemError('Unsupported OS distribution. OS must be one of: '
-                          '{0}.'.format(', '.join(supported_dists)))
+                          '{}.'.format(', '.join(supported_dists)))
 
     # Assign dist,version from the match groups tuple, removing any spaces
     dist, version = (x.translate(None, ' ') for x in matched.groups())
@@ -120,11 +119,13 @@ def main(configuration):
     logging.info('Printing parameters...')
 
     if 'yumrepomap' in config and config['yumrepomap']:
-        dist, version, epel_version = _yum_repo(config)
+        _yum_repo(config)
     else:
         logging.info('yumrepomap did not exist or was empty.')
 
-    # TODO This block is weird.  Correct and done.
+    dist, version, epel_version = _validate_distro()
+
+        # TODO This block is weird.  Correct and done.
     for repo in config['yumrepomap']:
         # Test whether this repo should be installed to this system
         if repo['dist'] in [dist, 'all'] and repo.get('epel_version', 'all') \

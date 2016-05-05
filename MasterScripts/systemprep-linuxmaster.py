@@ -123,7 +123,7 @@ class SystemPrep(object):
         params['prepdir'] = os.path.join('{}'.format(self.system_drive), 'usr', 'tmp', 'systemprep')
         params['readyfile'] = os.path.join('{}'.format(self.system_drive), 'var', 'run', 'system-is-ready')
         params['logdir'] = os.path.join('{}'.format(self.system_drive), 'var', 'log')
-        params['workingdir'] = os.path.join('{}'.format(params['prepdir'], 'workingfiles'))
+        params['workingdir'] = os.path.join('{}'.format(params['prepdir']), 'workingfiles')
         params['restart'] = 'shutdown -r +1 &'
         self.system_params = params
 
