@@ -6,8 +6,6 @@ import sys
 import urllib2
 import logging
 
-from boto.exception import BotoClientError
-
 
 def download_file(url, filename):
     """
@@ -36,16 +34,16 @@ Download the file from `url` and save it locally under `filename`.
 def _validate_distro():
     supported_dists = ('amazon', 'centos', 'red hat')
 
-    match_supported_dist = re.compile(r'^({0})'
-                                    '(?:[^0-9]+)'
-                                    '([\d]+[.][\d]+)'
-                                    '(?:.*)'
-                                    .format('|'.join(supported_dists)))
+    match_supported_dist = re.compile(r"^({0})"
+                                      "(?:[^0-9]+)"
+                                      "([\d]+[.][\d]+)"
+                                      "(?:.*)"
+                                      .format('|'.join(supported_dists)))
     amazon_epel_versions = {
-        '2014.03' : '6',
-        '2014.09' : '6',
-        '2015.03' : '6',
-        '2015.09' : '6',
+        '2014.03': '6',
+        '2014.09': '6',
+        '2015.03': '6',
+        '2015.09': '6',
     }
 
     # Read first line from /etc/system-release
@@ -80,33 +78,22 @@ def _validate_distro():
 
     return dist, version, epel_version
 
+
 def _yum_repo(config):
 
     if not isinstance(config['yumrepolist'], list):
         raise SystemError('`yumrepomap` must be a list!')
 
+
 def main(configuration):
     """
     Checks the distribution version and installs yum repo definition files
     that are specific to that distribution.
-    :param yumrepomap: list of dicts, each dict contains two or three keys.
-                       'url': the url to the yum repo definition file
-                       'dist': the linux distribution to which the repo should
-                               be installed. one of 'amazon', 'redhat',
-                               'centos', or 'all'. 'all' is a special keyword
-                               that maps to all distributions.
-                       'epel_version': optional. match the major version of the
-                                       epel-release that applies to the
-                                       system. one of '6' or '7'. if not
-                                       specified, the repo is installed to all
-                                       systems.
-        Example: [ { 
-                     'url' : 'url/to/the/yum/repo/definition.repo',
-                     'dist' : 'amazon' or 'redhat' or 'centos' or 'all',
-                     'epel_version' : '6' or '7',
-                   },
-                 ]
+
+    :param configuration:
+    :type configuration: JSON
     """
+
     try:
         config = json.loads(configuration)
     except ValueError:
@@ -125,8 +112,9 @@ def main(configuration):
 
     dist, version, epel_version = _validate_distro()
 
-        # TODO This block is weird.  Correct and done.
+    # TODO This block is weird.  Correct and done.
     for repo in config['yumrepomap']:
+
         # Test whether this repo should be installed to this system
         if repo['dist'] in [dist, 'all'] and repo.get('epel_version', 'all') \
                                                 in [epel_version, 'all']:
