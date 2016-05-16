@@ -9,7 +9,8 @@ SALTSTATES="${SYSTEMPREP_SALTSTATES:-Highstate}"
 AWSREGION="${SYSTEMPREP_AWSREGION:-us-east-1}"
 AWSCLI_URL="${SYSTEMPREP_AWSCLI_URL:-https://s3.amazonaws.com/aws-cli/awscli-bundle.zip}"
 ROOT_CERT_URL="${SYSTEMPREP_ROOT_CERT_URL}"
-SYSTEMPREPMASTERSCRIPTSOURCE="${SYSTEMPREP_MASTER_URL:-https://s3.amazonaws.com/systemprep/MasterScripts/systemprep-linuxmaster.py}"
+SYSTEMPREPMASTERSCRIPTSOURCE="${SYSTEMPREP_MASTER_URL:-https://s3.amazonaws.com/systemprep/Rewrite/MasterScripts/systemprep-linuxmaster.py}"
+SYSTEMPREPCONFIG="${SYSTEMPREP_CONFIG_URL:-https://s3.amazonaws.com/systemprep/Rewrite/MasterScripts/config.yaml}"
 SALTCONTENTURL="${SYSTEMPREP_SALTCONTENT_URL:-https://systemprep-content.s3.amazonaws.com/linux/salt/salt-content.zip}"
 SOURCEISS3BUCKET="${SYSTEMPREP_USES3UTILS:-False}"
 
@@ -76,6 +77,8 @@ print_usage()
   -m|--systemprep-master-url|\$SYSTEMPREP_MASTER_URL
       URL hosting the SystemPrep Master Script.
         <string>:   Default is "https://s3.amazonaws.com/systemprep/MasterScripts/systemprep-linuxmaster.py".
+  -c|--systemprep-config-url|\$SYSTEMPREP_CONFIG_URL
+        <string>:   Default is "https://s3.amazonaws.com/systemprep/MasterScripts/config.yaml".
   -o|--salt-content-url|\$SYSTEMPREP_SALTCONTENT_URL
       URL hosting an archive zip file of the salt content to apply to the
       system.
@@ -203,10 +206,7 @@ fi
 eval set -- "${ARGS}"
 
 while [ true ]; do
-    # When adding options to the case statement, also update print_usage(),
-    # SHORTOPTS and LONGOPTS. If the option should be passed to the master
-    # script, also update SYSTEMPREPPARAMS, below.
-    # Make sure the final file size is less than 16,384 bytes.
+
     case "${1}" in
         -e|--environment)
             shift; ENTENV="${1}" ;;
@@ -224,6 +224,8 @@ while [ true ]; do
             shift; ROOT_CERT_URL="${1}" ;;
         -m|--systemprep-master-url)
             shift; SYSTEMPREPMASTERSCRIPTSOURCE="${1}" ;;
+        -c|--systemprep-config-url)
+            shift; SYSTEMPREPCONFIG="${1}" ;;
         -o|--salt-content-url)
             shift; SALTCONTENTURL="${1}" ;;
         -u|--use-s3-utils)
@@ -251,7 +253,6 @@ SYSTEMPREPPARAMS=(
     "SourceIsS3Bucket=${SOURCEISS3BUCKET}"
     "AwsRegion=${AWSREGION}")
 
-# Setup logging
 if [[ ! -d ${LOGDIR} ]]; then
     echo "Creating ${LOGDIR} directory." 2>&1 | ${LOGGER} -i -t "${LOGTAG}" -s 2> /dev/console
     mkdir -p ${LOGDIR} 2>&1 | ${LOGGER} -i -t "${LOGTAG}" -s 2> /dev/console
@@ -265,10 +266,8 @@ exec > >(tee "${LOGFILE}" | "${LOGGER}" -i -t "${LOGTAG}" -s 2> /dev/console) 2>
 ln -s -f ${LOGFILE} ${LOGLINK}
 cd ${WORKINGDIR}
 
-# Begin logging
 echo "Entering SystemPrep script -- ${__SCRIPTNAME}"
 
-# Install root certs, if the root cert url is provided
 if [[ -n "${ROOT_CERT_URL}" ]]; then
 
     fetch_ca_certs "${ROOT_CERT_URL}" "${WORKINGDIR}/certs"
@@ -278,7 +277,6 @@ if [[ -n "${ROOT_CERT_URL}" ]]; then
     export AWS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
 fi
 
-# Install the aws cli
 AWS="/usr/local/bin/aws"
 if [[ -n "${AWSCLI_URL}" ]]; then
     AWSCLI_FILENAME=$(echo ${AWSCLI_URL} | awk -F'/' '{ print ( $(NF) ) }')
@@ -297,7 +295,6 @@ if [[ -n "${AWSCLI_URL}" ]]; then
         ( echo "Could not install awscli. Quitting..." && exit 1 )
 fi
 
-# Download the master script
 SCRIPTFILENAME=$(echo ${SYSTEMPREPMASTERSCRIPTSOURCE} | awk -F'/' '{ print ( $(NF) ) }')
 SCRIPTFULLPATH=${WORKINGDIR}/${SCRIPTFILENAME}
 if [[ "true" = ${SOURCEISS3BUCKET,,} ]]; then
@@ -315,8 +312,18 @@ else
             ( echo "Could not download file. Check the url and whether 'curl' is in the path. Quitting..." && exit 1 )
 fi
 
-# Convert the parameter list to a string
-# The string will be converted to a python dictionary by the master script
+if [[ "true" = ${SOURCEISS3BUCKET,,} ]]; then
+    BUCKET=$(echo ${SYSTEMPREPCONFIG} | awk -F'.' '{ print substr($1,9)}' OFS="/")
+    KEY=$(echo ${SYSTEMPREPCONFIG} | awk -F'/' '{$1=$2=$3=""; print substr($0,4)}' OFS="/")
+    $AWS s3 cp s3://${BUCKET}/${KEY} ${SCRIPTFULLPATH} --region ${AWSREGION} || \
+        ( BUCKET=$(echo ${SYSTEMPREPCONFIG} | awk -F'/' '{ print $4 }' OFS="/") ; \
+          KEY=$(echo ${SYSTEMPREPCONFIG} | awk -F'/' '{$1=$2=$3=$4=""; print substr($0,5)}' OFS="/") ; \
+          $AWS s3 cp s3://${BUCKET}/${KEY} ${SCRIPTFULLPATH} --region ${AWSREGION} )
+else
+    curl -L -O -s -S ${SYSTEMPREPCONFIG}
+fi
+
+
 PARAMSTRING=$( IFS=$' '; echo "${SYSTEMPREPPARAMS[*]}" )
 
 # Temporarily suppress rsyslog rate limiting
@@ -332,7 +339,6 @@ if [[ -e /etc/rsyslog.conf ]]; then
     echo "Restarting rsyslog..."
     service rsyslog restart
 fi
-# Temporarily suppress journald rate limiting
 if [[ -e /etc/systemd/journald.conf ]]; then
     echo "Temporarily disabling journald rate limiting"
     JOURNALDFLAG=1
@@ -346,7 +352,6 @@ if [[ -e /etc/systemd/journald.conf ]]; then
     systemctl restart systemd-journald.service
 fi
 
-# Write out the SystemPrep parameters
 echo "Writing SystemPrep Parameters to log file..."
 echo "   SaltStates=${SALTSTATES}"
 echo "   SaltContentSource=${SALTCONTENTURL}"
@@ -356,7 +361,6 @@ echo "   OuPath=${OUPATH}"
 echo "   SourceIsS3Bucket=${SOURCEISS3BUCKET}"
 echo "   AwsRegion=${AWSREGION}"
 
-# Execute the master script
 echo "Running the SystemPrep master script -- ${SCRIPTFULLPATH}"
 python ${SCRIPTFULLPATH} \
     "SaltStates=${SALTSTATES}" \
@@ -368,7 +372,6 @@ python ${SCRIPTFULLPATH} \
     "AwsRegion=${AWSREGION}" || \
     error_result=$?  # If error, capture the exit code
 
-# Restore prior logging config
 if [[ -n "${RSYSLOGFLAG}" || -n "${JOURNALDFLAG}" ]]; then
     echo "Sleeping 50 seconds to let logger catch up with the output of the python script..."
     sleep 50
@@ -386,7 +389,6 @@ if [[ -n "${RSYSLOGFLAG}" || -n "${JOURNALDFLAG}" ]]; then
     fi
 fi
 
-# Report success or failure
 if [[ -n $error_result ]]; then
     echo "ERROR: There was an error executing the SystemPrep Master script!"
     echo "Check the log file at: ${LOGLINK}"
