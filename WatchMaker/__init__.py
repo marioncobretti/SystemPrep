@@ -36,8 +36,6 @@ class Prepare(object):
         self.s3 = s3
         self.system = platform.system()
         self.config_path = config_path
-        # TODO create a config path and add this in so it can be automagically obtained.
-        # This will remove the hardcoded local path.
         self.default_config = os.path.join(static.__path__[0], 'config.yaml')
         self.log_path = log_path
         self.config = None
